@@ -30,26 +30,65 @@ export async function GET() {
 
     // 2. Cấu trúc JSON đầu ra cho kịch bản
     const scriptSchema = {
-      type: Type.OBJECT,
-      properties: {
-        title_vietnamese: {
-          type: Type.STRING,
-          description:
-            "Tiêu đề video ngắn giật gân, cuốn hút Gen Z bằng tiếng Việt.",
+  type: Type.OBJECT,
+  properties: {
+    title_vietnamese: {
+      type: Type.STRING,
+      description: "Tiêu đề video ngắn giật gân, cuốn hút Gen Z bằng tiếng Việt.",
+    },
+    voiceover_text: {
+      type: Type.STRING,
+      description: "Nội dung lời thoại toàn bộ video bằng tiếng Việt. Dưới 150 từ.",
+    },
+    hashtags: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Mảng chứa 4-5 hashtag trending",
+    },
+    visual_storyboard: {
+      type: Type.ARRAY,
+      description: "Mảng chứa các phân cảnh hình ảnh và hiệu ứng tương ứng với lời thoại.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          start_time: {
+            type: Type.NUMBER,
+            description: "Thời gian bắt đầu phân cảnh này trong video (tính bằng giây, ví dụ: 0.0)"
+          },
+          end_time: {
+            type: Type.NUMBER,
+            description: "Thời gian kết thúc phân cảnh này trong video (tính bằng giây, ví dụ: 3.5)"
+          },
+          subtitle_segment: {
+            type: Type.STRING,
+            description: "Đoạn text ngắn trích từ voiceover_text để hiển thị làm sub cho riêng phân cảnh này."
+          },
+          visual_effect: {
+            type: Type.STRING,
+            description: "Hiệu ứng hình ảnh đề xuất. Chọn 1 trong: 'normal', 'zoom_in', 'zoom_out', 'pan_left', 'pan_right'."
+          },
+          text_style: {
+            type: Type.STRING,
+            description: "Phong cách màu sắc chữ. Chọn 1 trong: 'normal_white', 'highlight_yellow', 'alert_red'."
+          },
+          sound_effect: {
+            type: Type.STRING,
+            description: "Âm thanh hiệu ứng chèn vào đầu phân cảnh. Chọn 1 trong: 'none', 'whoosh', 'ding', 'pop', 'vine_boom'."
+          }
         },
-        voiceover_text: {
-          type: Type.STRING,
-          description:
-            "Nội dung lời thoại tiếng Việt lồng tiếng. Nghe/xem video gốc để dịch và viết lại thật bánh cuốn, bắt trend. Dưới 150 từ.",
-        },
-        hashtags: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: "Mảng chứa 4-5 hashtag trending",
-        },
-      },
-      required: ["title_vietnamese", "voiceover_text", "hashtags"],
-    };
+        required: [
+          "start_time", 
+          "end_time", 
+          "subtitle_segment", 
+          "visual_effect", 
+          "text_style", 
+          "sound_effect"
+        ]
+      }
+    }
+  },
+  required: ["title_vietnamese", "voiceover_text", "hashtags", "visual_storyboard"],
+};
 
     const contents = [];
 
@@ -131,11 +170,16 @@ export async function GET() {
 
     // 4. Prompt điều khiển AI nhìn video và dịch thuật
     const promptText = `
-      Bạn là một biên tập viên nội dung video ngắn chuyện lạ bốn phương dành cho giới trẻ Gen Z Việt Nam trên TikTok.
-      Hãy xem file video được đính kèm (nếu có), kết hợp với tiêu đề gốc dưới đây để biên tập lại thành một kịch bản lồng tiếng tiếng Việt cực cuốn, hài hước và khớp với diễn biến video.
-
-      TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}
-    `;
+  Bạn là một chuyên gia biên tập video ngắn lão luyện trên TikTok, chuyên trị thể loại chuyện lạ bốn phương, tin tức giật gân dành cho giới trẻ Gen Z Việt Nam.
+  
+  Nhiệm vụ của bạn:
+  1. Xem file video được đính kèm (nếu có) kết hợp với tiêu đề gốc [TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}] để viết lại kịch bản lời thoại (voiceover_text) bằng tiếng Việt thật bánh cuốn, bắt trend, giật gân dưới 150 từ.
+  
+  2. Lên ý tưởng dựng video chi tiết (visual_storyboard): 
+     - Hãy chia nhỏ voiceover_text thành từng phân cảnh ngắn (mỗi cảnh tầm 2 đến 4 giây).
+     - Tính toán logic thời gian [start_time] và [end_time] cho từng cảnh sao cho khớp với tốc độ đọc bình thường (khoảng 3 từ mỗi giây). Đảm bảo cảnh đầu tiên bắt đầu từ 0.0 và tổng thời gian các cảnh phải khớp với toàn bộ độ dài của bài voiceover_text.
+     - Lựa chọn hiệu ứng hình ảnh (visual_effect), phong cách chữ (text_style) và âm thanh hiệu ứng (sound_effect) phù hợp với diễn biến tâm lý hoặc nội dung giật gân tại thời điểm đó của video để giữ chân người xem (retention rate) cao nhất.
+`;
     contents.push(promptText);
 
     const response = await gglClient.models.generateContent({
@@ -155,6 +199,11 @@ export async function GET() {
 
     const generatedScript = JSON.parse(responseText);
 
+
+    
+
+
+
     // 6. Cập nhật trạng thái thành PROCESSED
     await db.rawNews.update({
       where: {
@@ -165,6 +214,9 @@ export async function GET() {
         processedScript: JSON.stringify(generatedScript),
       },
     });
+
+    
+
 
     return NextResponse.json({
       success: true,
@@ -191,3 +243,4 @@ export async function GET() {
     }
   }
 }
+
