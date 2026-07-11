@@ -18,6 +18,7 @@ model RawNews {
   mediaUrl         String   @db.Text
   permalink        String   @db.Text
   status           String   @default("PENDING") // PENDING, PROCESSED, FAILED
+  processedScript  String?  @db.Text
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
