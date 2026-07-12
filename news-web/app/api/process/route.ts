@@ -200,9 +200,6 @@ export async function GET() {
     const generatedScript = JSON.parse(responseText);
 
 
-    
-
-
 
     // 6. Cập nhật trạng thái thành PROCESSED
     await db.rawNews.update({
@@ -232,8 +229,8 @@ export async function GET() {
       { success: false, error: `Lỗi xử lý: ${message}` },
       { status: 500 },
     );
+
   } finally {
-    // DỌN DẸP: Xóa file tạm trên server local sau khi chạy xong để tránh đầy ổ cứng
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         fs.unlinkSync(tempFilePath);

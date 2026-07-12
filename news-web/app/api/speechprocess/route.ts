@@ -22,6 +22,7 @@ export async function GET() {
     }
 
     const videoDir = path.join(process.cwd(), "video", processedNews.id);
+    const relativePath = path.join("", "video", processedNews.id);
     const localVideoPath = path.join(videoDir, "video_raw.mp4");
     const localScriptPath = path.join(videoDir, "script.json");
     const audioPath = path.join(videoDir, "audio.mp3");
@@ -55,7 +56,7 @@ export async function GET() {
 
           // Tải và lưu Video (nếu file video chưa có)
           if (!fs.existsSync(localVideoPath)) {
-            console.log("Đang tải video bằng Axios để vượt rào 403...");
+            console.log("Đang tải video ...");
 
             try {
               const response = await axios({
@@ -75,20 +76,19 @@ export async function GET() {
 
               if (response.status === 200) {
                 fs.writeFileSync(localVideoPath, Buffer.from(response.data));
-                console.log("Đã lưu video thành công bằng Axios!");
+                console.log("Đã lưu video thành công!");
               }
             } catch (axiosError: unknown) {
               const errorMessage = axios.isAxiosError(axiosError)
                 ? axiosError.response?.status || axiosError.message
                 : axiosError instanceof Error
-                ? axiosError.message
-                : String(axiosError);
+                  ? axiosError.message
+                  : String(axiosError);
 
-              console.error(
-                `Không thể tải video bằng Axios, lỗi: ${errorMessage}`,
-              );
+              console.error(`Không thể tải video, lỗi: ${errorMessage}`);
             }
           }
+
           // Ghi file Script (SỬA LỖI Ở ĐÂY: Dùng JSON.stringify)
           if (scriptData && !fs.existsSync(localScriptPath)) {
             fs.writeFileSync(
@@ -101,7 +101,10 @@ export async function GET() {
         } catch (downloadError) {
           console.log("Lỗi lưu tài nguyên local: ", downloadError);
           return NextResponse.json(
-            { success: false, error: "Lỗi trong quá trình tải/lưu file" },
+            {
+              success: false,
+              error: "Lỗi trong quá trình tải/lưu file or video",
+            },
             { status: 500 },
           );
         }
@@ -152,21 +155,12 @@ export async function GET() {
             throw new Error(
               "Không nhận được dữ liệu audioContent từ Google TTS",
             );
+          } else {
+            const audioBuffer = Buffer.from(gtsData.audioContent, "base64");
+            fs.writeFileSync(audioPath, audioBuffer);
+
+            console.log("Đã tạo và lưu file audio.mp3 thành công");
           }
-
-          const audioBuffer = Buffer.from(gtsData.audioContent, "base64");
-          fs.writeFileSync(audioPath, audioBuffer);
-
-          console.log("Đã tạo và lưu file audio.mp3 thành công");
-
-          await db.rawNews.update({
-            where: {
-              id: processedNews.id,
-            },
-            data: {
-              status: "PACKED",
-            },
-          });
         } catch (ttsError) {
           console.log("Lỗi trong quá trình sinh giọng đọc TTS: ", ttsError);
           return NextResponse.json(
@@ -178,48 +172,28 @@ export async function GET() {
           );
         }
       }
-    }
-
-    try {
-      console.log(
-        "Đang kích nổ Microservice Python để render video hoàn chỉnh...",
-      );
-
-      const pythonResponse = await fetch("http://localhost:8000/render", {
-        method: "POST",
-        headers: {
-          "Content-type": "application/json",
+      await db.rawNews.update({
+        where: {
+          id: processedNews.id,
         },
-        body: JSON.stringify({
-          video_dir: videoDir,
-        }),
+        data: {
+          status: "PACKED",
+          videoDir: relativePath,
+        },
       });
-
-      if (!pythonResponse.ok) {
-        const errDetail = await pythonResponse.text();
-        throw new Error(`Server Python báo lỗi: ${errDetail}`);
-      } else {
-        const pythonResult = await pythonResponse.json();
-        console.log("Thành quả từ Python:", pythonResult);
-      }
-    } catch (error) {
-      console.log("Lỗi trong quá trình gọi Python");
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Lỗi kết nối render video: ${error instanceof Error ? error.message : String(error)}`,
-        },
-        { status: 500 },
-      );
     }
 
     // Trả về kết quả thành công sau khi xử lý xong xuôi
-    return NextResponse.json({
-      success: true,
-      message:
-        "Đã tải và chuyển đổi thành audio thành công cũng như chuyển thành video thành công trong folder!",
-      data: processedNews,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message:
+          "Đã tải và chuyển đổi thành audio thành công cũng như chuyển thành video thành công trong folder!",
+      },
+      {
+        status: 200,
+      },
+    );
   } catch (error) {
     console.log("Lỗi hệ thống toàn cục: ", error);
     return NextResponse.json(

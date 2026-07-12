@@ -1,26 +1,25 @@
-datasource db {
-  provider  = "postgresql"
-}
-
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+}
 
 model RawNews {
-  id               String   @id @default(uuid())
-  sourceId         String   @unique // Dùng để check trùng (ví dụ ID của bài viết trên Reddit)
-  platform         String   // reddit, douyin, youtube...
-  subreddit        String?  // Có thể null nếu cào từ nguồn khác
-  originalTitle    String   @db.Text
-  originalContent  String   @db.Text
-  mediaUrl         String   @db.Text
-  permalink        String   @db.Text
-  status           String   @default("PENDING") // PENDING, PROCESSED, FAILED
-  processedScript  String?  @db.Text
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(uuid())
+  sourceId        String   @unique
+  platform        String
+  subreddit       String?
+  originalTitle   String
+  originalContent String
+  mediaUrl        String
+  permalink       String
+  status          String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  processedScript String?
+  videoDir        String?
 
   @@index([sourceId])
 }
