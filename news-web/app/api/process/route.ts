@@ -29,16 +29,16 @@ export async function GET() {
     }
 
     // 2. Cấu trúc JSON đầu ra cho kịch bản
-    const scriptSchema = {
+  const scriptSchema = {
   type: Type.OBJECT,
   properties: {
     title_vietnamese: {
       type: Type.STRING,
-      description: "Tiêu đề video ngắn giật gân, cuốn hút Gen Z bằng tiếng Việt.",
+      description: "Tiêu đề video ngắn giật gân hoặc cuốn hút Gen Z bằng tiếng Việt.",
     },
     voiceover_text: {
       type: Type.STRING,
-      description: "Nội dung lời thoại toàn bộ video bằng tiếng Việt. Dưới 150 từ.",
+      description: "Nội dung lời thoại toàn bộ video bằng tiếng Việt. Nói dưới 1 phút.",
     },
     hashtags: {
       type: Type.ARRAY,
@@ -47,7 +47,7 @@ export async function GET() {
     },
     visual_storyboard: {
       type: Type.ARRAY,
-      description: "Mảng chứa các phân cảnh hình ảnh và hiệu ứng tương ứng với lời thoại.",
+      description: "Mảng chứa các phân cảnh hình ảnh và hiệu ứng tương ứng với lời thoại, và chỉ chọn khi thật sự phù hợp không thì có thể để bình thường.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -65,7 +65,7 @@ export async function GET() {
           },
           visual_effect: {
             type: Type.STRING,
-            description: "Hiệu ứng hình ảnh đề xuất. Chọn 1 trong: 'normal', 'zoom_in', 'zoom_out', 'pan_left', 'pan_right'."
+            description: "Hiệu ứng hình ảnh đề xuất. Chọn 1 trong: 'normal', 'zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'zoom_in_right','zoom_in_left','pan_down', 'pan_up'."
           },
           text_style: {
             type: Type.STRING,
@@ -170,10 +170,10 @@ export async function GET() {
 
     // 4. Prompt điều khiển AI nhìn video và dịch thuật
     const promptText = `
-  Bạn là một chuyên gia biên tập video ngắn lão luyện trên TikTok, chuyên trị thể loại chuyện lạ bốn phương, tin tức giật gân dành cho giới trẻ Gen Z Việt Nam.
+  Bạn là một chuyên gia biên tập video ngắn lão luyện trên TikTok, chuyên trị thể loại chuyện lạ bốn phương, tin tức giật gân, drama dành cho giới trẻ Gen Z Việt Nam.
   
   Nhiệm vụ của bạn:
-  1. Xem file video được đính kèm (nếu có) kết hợp với tiêu đề gốc [TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}] để viết lại kịch bản lời thoại (voiceover_text) bằng tiếng Việt thật bánh cuốn, bắt trend, giật gân dưới 150 từ.
+  1. Xem file video được đính kèm (nếu có) kết hợp với tiêu đề gốc [TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}] để viết lại kịch bản lời thoại (voiceover_text) bằng tiếng Việt thật bánh cuốn, bắt trend, giật gân dưới 1 phút.
   
   2. Lên ý tưởng dựng video chi tiết (visual_storyboard): 
      - Hãy chia nhỏ voiceover_text thành từng phân cảnh ngắn (mỗi cảnh tầm 2 đến 4 giây).

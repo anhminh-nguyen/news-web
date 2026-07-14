@@ -113,7 +113,7 @@ export async function GET() {
       // kết nối api google
       if (!fs.existsSync(audioPath) && scriptData?.voiceover_text) {
         try {
-          console.log("Đang tiến hành chạy text-to-speech tạp mp3");
+          console.log("Đang tiến hành chạy text-to-speech tạo mp3");
 
           const voiceKey = process.env.GOOGLE_VOICE_KEY || "";
 
@@ -134,11 +134,12 @@ export async function GET() {
                 },
                 voice: {
                   languageCode: "vi-VN",
-                  name: "vi-VN-Neural2-A",
+                  name: "vi-VN-Chirp3-HD-Vindemiatrix",
                 },
                 audioConfig: {
                   audioEncoding: "MP3",
-                  speakingRate: 1.0,
+                  volumeGainDb: 15.0,
+                  speakingRate: 1.22,
                 },
               }),
             },

@@ -34,6 +34,19 @@ export async function GET() {
       // Nếu chưa có thì mới lưu vào DB
       if (!existingPost) {
         const contentHtml = item.content || '';
+        const permalink = item.link || '';
+
+        const hasVideo = 
+        contentHtml.includes('v.redd.it') || 
+        permalink.includes('v.redd.it') ||
+        contentHtml.includes('<video') ||
+        contentHtml.includes('youtube.com') ||
+        contentHtml.includes('youtu.be');
+
+      // NẾU KHÔNG CÓ VIDEO THÌ BỎ QUA, KHÔNG LƯU VÀO DB
+        if (!hasVideo) continue;
+
+
         const imgRegex = /<img[^>]+src="([^">]+)"/g;
         const match = imgRegex.exec(contentHtml);
         const mediaUrl = match ? match[1] : item.link || '';

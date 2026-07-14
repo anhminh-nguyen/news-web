@@ -47,7 +47,7 @@ export async function GET() {
 
         const newPost = await db.rawNews.create({
             data:{
-                sourceId: String(sourceId),
+            sourceId: String(sourceId),
             platform: 'tiktok',
             subreddit: null, // TikTok không có subreddit
             originalTitle: videoDesc, // Lấy caption làm title gốc
@@ -60,7 +60,6 @@ export async function GET() {
 
         savedPost.push(newPost);
         intertedCount++;
-
     }
     }
 
