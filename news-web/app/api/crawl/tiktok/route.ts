@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
 
-    const keyword = 'facts';
+  const keyword = 'facts';
   const url =
     `https://tiktok-api23.p.rapidapi.com/api/search/video?keyword=${encodeURIComponent(keyword)}&cursor=0&search_id=0`;
   const options = {

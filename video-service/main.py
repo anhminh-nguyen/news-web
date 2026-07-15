@@ -4,7 +4,6 @@ import os
 import json
 from effect import apply_visual_effect
 import textwrap
-
 from faster_whisper import WhisperModel
 from moviepy import (
     AudioFileClip,
@@ -508,13 +507,13 @@ def render_video(request: RenderRequest):
                 subtitle_end,
             )
 
-            font_color = "#FFFFFF"
+            font_color = "#F8F8F8"
 
             if text_style == "highlight_yellow":
-                font_color = "#FFD54A"
+                font_color = "#3B82F6"
 
             elif text_style == "alert_red":
-                font_color = "#FF4D4F"
+                font_color = "#FFD54A"
 
             # wrapped_text = "\n".join(textwrap.wrap(subtitle_text.upper(), width=30))
         
@@ -523,10 +522,10 @@ def render_video(request: RenderRequest):
                 font=font_path,
                 # text=wrapped_text,
                 text = subtitle_text.upper(),
-                font_size=50,
+                font_size=52,
                 color=font_color,
-                stroke_color="#111111",
-                stroke_width=2,
+                stroke_color="#0A2D73",
+                stroke_width=3,
                 method="caption",
                 size=(CANVAS_W-100,None),
                 margin=(10, 6),

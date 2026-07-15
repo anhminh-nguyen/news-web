@@ -24,7 +24,7 @@ export async function GET() {
     if (!pendingNews) {
       return NextResponse.json({
         success: false,
-        error: "Hết tin để xử lý rồi ông ơi!",
+        error: "Hết tin để xử lý rồi nhé!",
       });
     }
 
