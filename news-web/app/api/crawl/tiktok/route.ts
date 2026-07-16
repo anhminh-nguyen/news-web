@@ -1,84 +1,112 @@
 import { db } from "@/lib/db";
+import { crawlTikTok } from "@/lib/filter/filterCountry";
 import { NextResponse } from "next/server";
 
 export async function GET() {
 
-  const keyword = 'facts';
-  const url =
-    `https://tiktok-api23.p.rapidapi.com/api/search/video?keyword=${encodeURIComponent(keyword)}&cursor=0&search_id=0`;
-  const options = {
-    method: "GET",
-    headers: {
-      "x-rapidapi-key":  process.env.TIKTOK_API_KEY ||  "0176e02a46msha841a135c0fede3p146ffejsn9aa43d19dfed",
-      "x-rapidapi-host": "tiktok-api23.p.rapidapi.com",
-      "Content-Type": "application/json",
-    },
-  };
 
   try {
-    const response = await fetch(url, options);
+    type Crawltype = "VN" | "Global"
 
-    let intertedCount = 0;
+    // const crawlPlan: Crawltype[] = [
+    //   "VN",
+    //   "VN",
+    //   "VN",
+    //   "VN",
+    //   "VN",
+    //   "VN",
+    //   "VN",
+    //   "Global",
+    //   "Global",
+    //   "Global",
+    // ];
+
+    // function randomCrawl<T>(items: T[]):T{
+    //     return items[Math.floor((Math.random()*items.length))]
+    // }
+
+    const crawlRegion = "VN" 
+    // const crawlRegion = "Global"
+
+    const videoTiktok = await crawlTikTok(crawlRegion)
+
     const savedPost = [];
+const savedTopics = new Set<string>();
+let insertedCount = 0;
 
-    if (!response.ok){
-        throw new Error(`RapidAPI TikTok trả về status: ${response.status}`)
-    }
+for (const video of videoTiktok) {
+  const sourceId = video.id;
 
+  if (!sourceId) {
+    continue;
+  }
 
-    const resData = await response.json();
-
-    const videoTiktok = resData.item_list || [];
-
-    
-
-    for (const video of videoTiktok){
-        const sourceId = video.id;
-        if (!sourceId) continue 
-    
-
-    const existingSource = await db.rawNews.findUnique({
-        where: {sourceId: String(sourceId)}
+  const existingSource =
+    await db.rawNews.findUnique({
+      where: {
+        sourceId: String(sourceId),
+      },
     });
 
-    if(!existingSource){
-        const mediaUrl = video.video?.playAddr || video.video?.downloadAddr || ''
-        const videoDesc = video.desc || video.title || 'TikTok Video độc lạ bốn phương';
+  if (existingSource) {
+    continue;
+  }
 
-        const newPost = await db.rawNews.create({
-            data:{
-            sourceId: String(sourceId),
-            platform: 'tiktok',
-            subreddit: null, // TikTok không có subreddit
-            originalTitle: videoDesc, // Lấy caption làm title gốc
-            originalContent: `Author: ${video.author?.nickname || 'Ẩn danh'}. Lượt xem/tim cao.`,
-            mediaUrl: mediaUrl, // Đường dẫn file .mp4 thô để tải về dựng video
-            permalink: video.share_url || `https://www.tiktok.com/@share/video/${sourceId}`,
-            status: 'PENDING'
-            }
-        });
+  const mediaUrl =
+    video.video?.playAddr ||
+    video.video?.downloadAddr ||
+    "";
 
-        savedPost.push(newPost);
-        intertedCount++;
-    }
-    }
+  const videoDesc =
+    video.desc ||
+    video.title ||
+    "TikTok Video độc lạ bốn phương";
 
-    return NextResponse.json({
-        success:true,
-        platform:'Tiktok',
-        total_crawled:videoTiktok.length,
-        new_inserted: intertedCount,
-        data: savedPost
+  const newPost = await db.rawNews.create({
+    data: {
+      sourceId: String(sourceId),
+      platform: "tiktok",
+      subreddit: null,
+      originalTitle: videoDesc,
+      originalContent:
+        `Author: ${video.author?.nickname || "Ẩn danh"}. ` +
+        `Lượt xem/tim cao.`,
+      mediaUrl,
+      permalink:
+        video.share_url ||
+        `https://www.tiktok.com/@share/video/${sourceId}`,
+      status: "PENDING",
+      crawlKeyword: video.crawlKeyword,
+      vietnamScore: video.vietnamScore,
+      engageScore: video.engageScore,
+      contentScore: video.contentScore,
     },
-    {status:200}
+  });
 
+  if (video.crawlKeyword) {
+    savedTopics.add(video.crawlKeyword);
+  }
+
+  savedPost.push(newPost);
+  insertedCount++;
+}
+
+    return NextResponse.json(
+  {
+    success: true,
+    platform: "Tiktok",
+    crawlKeywords: Array.from(savedTopics),
+    total_crawled: videoTiktok.length,
+    new_inserted: insertedCount,
+    data: savedPost,
+  },
+  { status: 200 }
 );
-    
   } catch (error) {
-     const message = error instanceof Error ? error.message : String(error);
-     return NextResponse.json({success:false,
-        error:message
-     },{status:500}
-    )
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 },
+    );
   }
 }

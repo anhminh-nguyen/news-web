@@ -35,26 +35,27 @@ def create_title_image(output_path:str,font_path:str)->None:
         fill=COLOR_BLUE
     )
 
+  # Sự thật rợn người đằng sau những nút thắt dây sinh tồn!
     draw.text(
         (left,45),
-        "SỐC! LOÀI CỪU CÓ",
+        "SỰ THẬT RỢN NGƯỜI ĐẰNG",
         font = font_black,
         fill=COLOR_BLACK
 
     )
 
     draw.text(
-        (left,149),
-        "VÒNG 3 KHỔNG LỒ",
+        (left,145),
+        " SAU NHỮNG NÚT",
         font = font_blue,
-        fill=COLOR_BLUE
+        fill=COLOR_BLACK
 
     )
     draw.text(
         (left,255),
-        "NHẤT THẾ GIỚI LÀ ĐÂY?",
+        "THẮT DÂY SINH TỒN!",
         font = font_black,
-        fill=COLOR_BLACK
+        fill=COLOR_BLUE
 
     )
 

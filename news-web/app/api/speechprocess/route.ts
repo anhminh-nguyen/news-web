@@ -139,7 +139,7 @@ export async function GET() {
                 audioConfig: {
                   audioEncoding: "MP3",
                   volumeGainDb: 15.0,
-                  speakingRate: 1.22,
+                  speakingRate: 1.10,
                 },
               }),
             },

@@ -16,14 +16,22 @@ export async function GET() {
     const feed = await parser.parseURL(feedUrl);
 
     if (!feed.items || feed.items.length === 0) {
-      return NextResponse.json({ success: true, count: 0, inserted: 0, data: [] });
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        inserted: 0,
+        data: [],
+      });
     }
+
+    const MAX_POSTS = 5;
+    const items = feed.items.slice(0, MAX_POSTS);
 
     let insertedCount = 0;
     const savedPosts = [];
 
     // Duyệt qua từng bài viết cào được
-    for (const item of feed.items) {
+    for (const item of items) {
       const sourceId = item.id ? item.id.split('_')[1] || item.id : Math.random().toString();
       
       // Check xem bài này đã tồn tại trong Postgres chưa
@@ -60,7 +68,11 @@ export async function GET() {
             originalContent: item.contentSnippet || '',
             mediaUrl: mediaUrl,
             permalink: item.link || '',
-            status: 'PENDING'
+            status: 'PENDING',
+            crawlKeyword: null,
+            vietnamScore: null,
+            engageScore: null,
+            contentScore: null,
           }
         });
         

@@ -20,6 +20,10 @@ model RawNews {
   updatedAt       DateTime @updatedAt
   processedScript String?
   videoDir        String?
+  crawlKeyword    String?
+  contentScore    Float?
+  engageScore     Float?
+  vietnamScore    Int?
 
   @@index([sourceId])
 }

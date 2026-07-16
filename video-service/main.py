@@ -13,6 +13,7 @@ from moviepy import (
     TextClip,
     VideoFileClip,
     vfx,
+    afx
 )
 # from moviepy.config import change_settings
 # change_settings({"IMAGEMAGICK_BINARY": r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"})
@@ -245,7 +246,6 @@ def render_video(request: RenderRequest):
         # =========================================================
         # ĐỌC VIDEO, AUDIO VÀ TEMPLATE
         # =========================================================
-
         base_video = VideoFileClip(raw_video_path)
         base_video = base_video.resized(new_size=(CANVAS_W, CANVAS_H))
         main_voiceover = AudioFileClip(audio_path)
@@ -267,6 +267,44 @@ def render_video(request: RenderRequest):
             )
 
         final_duration = main_voiceover.duration
+
+        original_video_duration = base_video.duration
+        original_voice_duration = main_voiceover.duration
+
+        MAX_VOICE_SLOWDOWN = 0.12
+        voice_time_scale = 1.0
+
+        if original_video_duration > original_voice_duration:
+            duration_ratio = (
+                original_video_duration
+                / original_voice_duration
+            )
+
+            if duration_ratio <= 1.0 + MAX_VOICE_SLOWDOWN:
+                speed_factor = (
+                    original_voice_duration
+                    / original_video_duration
+                )
+
+                main_voiceover = main_voiceover.with_effects([
+                    afx.MultiplySpeed(
+                        factor=speed_factor
+                    )
+                ])
+
+                voice_time_scale = duration_ratio
+                final_duration = original_video_duration
+
+                print(
+                    f"Giảm tốc voice xuống {speed_factor:.3f}x"
+                )
+            else:
+                final_duration = original_voice_duration
+        else:
+            final_duration = original_voice_duration
+        
+
+        
 
         template = (
             ImageClip(template_path)
@@ -412,11 +450,15 @@ def render_video(request: RenderRequest):
                 )
             ).strip()
 
+
+
             if (
                 not sfx_name
                 or sfx_name.lower() == "none"
             ):
                 continue
+
+
 
             sfx_file_path = os.path.join(
                 os.getcwd(),'sfx',
@@ -482,11 +524,11 @@ def render_video(request: RenderRequest):
         for subtitle in subtitle_segments:
             subtitle_start = max(
                 0.0,
-                float(subtitle["start"]),
+                float(subtitle["start"]) * voice_time_scale,
             )
 
             subtitle_end = min(
-                float(subtitle["end"]),
+                float(subtitle["end"]) * voice_time_scale,
                 final_duration,
             )
 
@@ -507,13 +549,28 @@ def render_video(request: RenderRequest):
                 subtitle_end,
             )
 
-            font_color = "#F8F8F8"
+            font_color = "#F8F8F8"  # normal_white
 
             if text_style == "highlight_yellow":
-                font_color = "#3B82F6"
+                font_color = "#FFD54A"      # Vàng nổi bật
 
-            elif text_style == "alert_red":
-                font_color = "#FFD54A"
+            elif text_style == "breaking_red":
+                font_color = "#FF4D4F"      # Đỏ tin nóng
+
+            elif text_style == "success_green":
+                font_color = "#4CAF50"      # Xanh thành công
+
+            elif text_style == "technology_blue":
+                font_color = "#3B82F6"      # Xanh công nghệ
+
+            elif text_style == "mystery_purple":
+                font_color = "#8B5CF6"      # Tím bí ẩn
+
+            elif text_style == "gold":
+                font_color = "#FBBF24"      # Vàng kim
+
+            elif text_style == "quote_gray":
+                font_color = "#D1D5DB"      # Xám nhạt
 
             # wrapped_text = "\n".join(textwrap.wrap(subtitle_text.upper(), width=30))
         

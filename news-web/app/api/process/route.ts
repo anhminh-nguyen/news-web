@@ -7,29 +7,10 @@ import os from "os";
 
 const gglClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || "" });
 
-export async function GET() {
-  let tempFilePath = "";
-  let uploadResult = null;
-
-  try {
-    // 1. Lấy ra 1 bài viết PENDING từ DB
-    const pendingNews = await db.rawNews.findFirst({
-      where: {
-        status: "PENDING",
-        platform: "tiktok",
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    if (!pendingNews) {
-      return NextResponse.json({
-        success: false,
-        error: "Hết tin để xử lý rồi nhé!",
-      });
-    }
-
-    // 2. Cấu trúc JSON đầu ra cho kịch bản
-  const scriptSchema = {
+// ========================================================
+// BƯỚC 1 SCHEMA: Chỉ lấy Tiêu đề, Voiceover chữ dài và Hashtag
+// ========================================================
+const step1Schema = {
   type: Type.OBJECT,
   properties: {
     title_vietnamese: {
@@ -38,16 +19,26 @@ export async function GET() {
     },
     voiceover_text: {
       type: Type.STRING,
-      description: "Nội dung lời thoại toàn bộ video bằng tiếng Việt. Nói dưới 1 phút.",
+      description: "Nội dung lời thoại toàn bộ video bằng tiếng Việt. BẮT BUỘC viết cực kỳ chi tiết, diễn giải đầy đủ các tình tiết trong video. Độ dài bắt buộc phải từ 250 đến 270 từ để khi đọc lên khớp vừa vặn với thời lượng 90 giây của video gốc. TUYỆT ĐỐI không tóm tắt sơ sài.",
     },
     hashtags: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
       description: "Mảng chứa 4-5 hashtag trending",
     },
+  },
+  required: ["title_vietnamese", "voiceover_text", "hashtags"],
+};
+
+// ========================================================
+// BƯỚC 2 SCHEMA: Chỉ tập trung băm nhỏ Timeline và chèn SFX
+// ========================================================
+const step2Schema = {
+  type: Type.OBJECT,
+  properties: {
     visual_storyboard: {
       type: Type.ARRAY,
-      description: "Mảng chứa các phân cảnh hình ảnh và hiệu ứng tương ứng với lời thoại, và chỉ chọn khi thật sự phù hợp không thì có thể để bình thường.",
+      description: "Mảng chứa các phân cảnh hình ảnh và hiệu ứng tương ứng, băm nhỏ từ chính xác đoạn voiceover_text được cung cấp ở Bước 1.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -57,11 +48,11 @@ export async function GET() {
           },
           end_time: {
             type: Type.NUMBER,
-            description: "Thời gian kết thúc phân cảnh này trong video (tính bằng giây, ví dụ: 3.5)"
+            description: "Thời gian kết thúc phân cảnh này trong video (tính bằng giây, ví dụ: 3.5). Đảm bảo cảnh cuối cùng kết thúc ở chính xác thời lượng video gốc (90.0)."
           },
           subtitle_segment: {
             type: Type.STRING,
-            description: "Đoạn text ngắn trích từ voiceover_text để hiển thị làm sub cho riêng phân cảnh này."
+            description: "Đoạn text ngắn trích NGUYÊN VĂN từ voiceover_text để hiển thị làm sub cho riêng phân cảnh này."
           },
           visual_effect: {
             type: Type.STRING,
@@ -69,11 +60,32 @@ export async function GET() {
           },
           text_style: {
             type: Type.STRING,
-            description: "Phong cách màu sắc chữ. Chọn 1 trong: 'normal_white', 'highlight_yellow', 'alert_red'."
+            description: `
+              Chọn 1 trong:
+              'normal_white',
+              'highlight_yellow',
+              'breaking_red',
+              'success_green',
+              'technology_blue',
+              'mystery_purple',
+              'gold',
+              'quote_gray'
+              `
           },
           sound_effect: {
             type: Type.STRING,
-            description: "Âm thanh hiệu ứng chèn vào đầu phân cảnh. Chọn 1 trong: 'none', 'whoosh', 'ding', 'pop', 'vine_boom'."
+            description: `
+              Chọn 1 trong:
+              'none',
+              'whoosh',
+              'pop',
+              'ding',
+              'click',
+              'notification',
+              'camera_shutter',
+              'wow',
+              'chime',
+              `
           }
         },
         required: [
@@ -87,12 +99,34 @@ export async function GET() {
       }
     }
   },
-  required: ["title_vietnamese", "voiceover_text", "hashtags", "visual_storyboard"],
+  required: ["visual_storyboard"],
 };
 
+export async function GET() {
+  let tempFilePath = "";
+  let uploadResult = null;
+
+  try {
+    // 1. Lấy ra 1 bài viết READY từ DB
+    const pendingNews = await db.rawNews.findFirst({
+      where: {
+        status: "READY",
+        platform: "tiktok",
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!pendingNews) {
+      return NextResponse.json({
+        success: false,
+        error: "Hết tin để xử lý rồi nhé!",
+      });
+    }
+
+    const videoDuration = 90; // Thời lượng video gốc bạn đã biết trước là 90s
     const contents = [];
 
-    // 3. TỐI ƯU MULTIMODAL: Tải video về thư mục tạm và upload lên Google File API
+    // 2. TỐI ƯU MULTIMODAL: Tải video về thư mục tạm và upload lên Google File API
     if (
       pendingNews.mediaUrl &&
       pendingNews.mediaUrl.startsWith("http") &&
@@ -103,41 +137,27 @@ export async function GET() {
         if (mediaResponse.ok) {
           const buffer = await mediaResponse.arrayBuffer();
 
-          // Tạo file tạm trên server Next.js (lưu vào thư mục temp của hệ điều hành)
           tempFilePath = path.join(
             os.tmpdir(),
             `tiktok_${pendingNews.sourceId}.mp4`,
           );
           fs.writeFileSync(tempFilePath, Buffer.from(buffer));
 
-          // Đẩy file video lên Google File API chuyên dụng
           uploadResult = await gglClient.files.upload({
             file: tempFilePath,
-            config: {
-              mimeType: "video/mp4",
-            },
+            config: { mimeType: "video/mp4" },
           });
 
-          console.log(
-            `Đã upload file lên Google, đang chờ xử lý: ${uploadResult.name}`,
-          );
-
-          // 2. VÒNG LẶP KIỂM TRA TRẠNG THÁI FILE (POLLING)
+          console.log(`Đã upload file lên Google, đang chờ xử lý: ${uploadResult.name}`);
 
           if (!uploadResult.name) {
-            throw new Error(
-              "Upload thanh cong nhung khong nhan duoc file name",
-            );
+            throw new Error("Upload thành công nhưng không nhận được file name");
           }
 
-          let fileState = await gglClient.files.get({
-            name: uploadResult.name,
-          });
+          let fileState = await gglClient.files.get({ name: uploadResult.name });
           while (fileState.state === "PROCESSING") {
-            console.log(
-              "Video đang được Google bóc tách frame... chờ 2 giây...",
-            );
-            await new Promise((resolve) => setTimeout(resolve, 2000)); // Chờ 2 giây rồi check lại
+            console.log("Video đang được Google bóc tách frame... chờ 2 giây...");
+            await new Promise((resolve) => setTimeout(resolve, 2000));
             fileState = await gglClient.files.get({ name: uploadResult.name });
           }
 
@@ -147,81 +167,118 @@ export async function GET() {
 
           console.log("Video đã sẵn sàng (ACTIVE)! Tiến hành gửi cho AI...");
 
-          // Đẩy cái URI siêu nhẹ của file vừa upload vào mảng contents cho Gemini đọc
           contents.push({
             fileData: {
               fileUri: uploadResult.uri,
               mimeType: uploadResult.mimeType,
             },
           });
-
-          console.log(
-            "Đã upload video lên Google File API thành công:",
-            uploadResult.uri,
-          );
         }
       } catch (uploadError) {
-        console.error(
-          "Lỗi upload File API, chuyển sang chạy text thuần:",
-          uploadError,
-        );
+        console.error("Lỗi upload File API, chuyển sang chạy text thuần:", uploadError);
       }
     }
 
-    // 4. Prompt điều khiển AI nhìn video và dịch thuật
-    const promptText = `
-  Bạn là một chuyên gia biên tập video ngắn lão luyện trên TikTok, chuyên trị thể loại chuyện lạ bốn phương, tin tức giật gân, drama dành cho giới trẻ Gen Z Việt Nam.
-  
-  Nhiệm vụ của bạn:
-  1. Xem file video được đính kèm (nếu có) kết hợp với tiêu đề gốc [TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}] để viết lại kịch bản lời thoại (voiceover_text) bằng tiếng Việt thật bánh cuốn, bắt trend, giật gân dưới 1 phút.
-  
-  2. Lên ý tưởng dựng video chi tiết (visual_storyboard): 
-     - Hãy chia nhỏ voiceover_text thành từng phân cảnh ngắn (mỗi cảnh tầm 2 đến 4 giây).
-     - Tính toán logic thời gian [start_time] và [end_time] cho từng cảnh sao cho khớp với tốc độ đọc bình thường (khoảng 3 từ mỗi giây). Đảm bảo cảnh đầu tiên bắt đầu từ 0.0 và tổng thời gian các cảnh phải khớp với toàn bộ độ dài của bài voiceover_text.
-     - Lựa chọn hiệu ứng hình ảnh (visual_effect), phong cách chữ (text_style) và âm thanh hiệu ứng (sound_effect) phù hợp với diễn biến tâm lý hoặc nội dung giật gân tại thời điểm đó của video để giữ chân người xem (retention rate) cao nhất.
-`;
-    contents.push(promptText);
+    // ========================================================
+    // 🔥 LƯỢT 1: BẮT AI XEM VIDEO & TIÊU ĐỀ ĐỂ VIẾT KỊCH BẢN CHỮ DÀI
+    // ========================================================
+    console.log("🚀 [BƯỚC 1]: Đang ép Gemini viết kịch bản chữ đầy đủ...");
+    
+    const promptStep1 = `
+      Bạn là một chuyên gia biên tập video ngắn lão luyện trên TikTok, chuyên trị thể loại chuyện lạ bốn phương, tin tức giật gân, drama dành cho giới trẻ Gen Z Việt Nam.
+      
+      Nhiệm vụ của bạn:
+      Xem file video được đính kèm (nếu có) kết hợp với tiêu đề gốc [TIÊU ĐỀ GỐC: ${pendingNews.originalTitle}] để viết lại kịch bản lời thoại (voiceover_text) bằng tiếng Việt thật bánh cuốn, bắt trend, giật gân nhưng không thiếu nội dung.
+      
+      QUY ĐỊNH BẮT BUỘC:
+      Video gốc có thời lượng chính xác là ${videoDuration} giây. Để khớp thời gian với tốc độ đọc bình thường (~3 từ/giây), đoạn văn bản 'voiceover_text' của bạn BẮT BUỘC phải dài trong khoảng từ 250 đến 270 từ. Hãy viết thật chi tiết diễn biến, kể câu chuyện đầy đủ từ đầu đến cuối, tuyệt đối không được tóm tắt ngắn ngủi.
+    `;
+    
+    // Copy mảng contents chứa video (nếu có) để truyền vào Lượt 1
+    const step1Contents = [...contents, promptStep1];
 
-    const response = await gglClient.models.generateContent({
+    const step1Response = await gglClient.models.generateContent({
       model: "gemini-3.1-flash-lite",
-      contents: contents,
+      contents: step1Contents,
       config: {
         responseMimeType: "application/json",
-        responseSchema: scriptSchema,
+        responseSchema: step1Schema,
         temperature: 0.7,
       },
     });
 
-    const responseText = response.text;
-    if (!responseText) {
-      throw new Error("Gemini không trả về dữ liệu");
+    if (!step1Response.text) {
+      throw new Error("Gemini sập ở Bước 1, không trả về text kịch bản");
     }
 
-    const generatedScript = JSON.parse(responseText);
+    const step1Result = JSON.parse(step1Response.text);
+    console.log(`📝 Đã có kịch bản chữ. Số từ đếm được: ${step1Result.voiceover_text.split(" ").length}`);
 
+    // ========================================================
+    // 🔥 LƯỢT 2: ĐƯA KỊCH BẢN CHỮ VÀO ĐỂ BĂM TIMELINE VÀ HÌNH ẢNH
+    // ========================================================
+    console.log("🚀 [BƯỚC 2]: Đang gửi kịch bản chữ sang để băm nhỏ timeline...");
 
+    const promptStep2 = `
+      Bạn là chuyên gia thiết kế timeline và hiệu ứng hình ảnh/âm thanh cho video TikTok short-form.
+      
+      Dưới đây là kịch bản lời thoại tiếng Việt đầy đủ dài đúng ${videoDuration} giây vừa được soạn thảo:
+      ---
+      ${step1Result.voiceover_text}
+      ---
+      
+      Nhiệm vụ của bạn:
+      Lên ý tưởng dựng video chi tiết (visual_storyboard) dựa TRÊN CHÍNH XÁC đoạn kịch bản chữ ở trên:
+      1. Hãy băm nhỏ toàn bộ đoạn voiceover_text trên thành từng phân cảnh ngắn (mỗi cảnh tầm 2 đến 4 giây).
+      2. Tính toán logic thời gian [start_time] và [end_time] cho từng cảnh sao cho khớp với tốc độ đọc (khoảng 3 từ mỗi giây). Đảm bảo cảnh đầu tiên bắt đầu từ 0.0 và tổng thời gian (end_time của phân cảnh cuối cùng) phải kết thúc ở chính xác ${videoDuration}.0 giây.
+      3. Lựa chọn hiệu ứng hình ảnh (visual_effect), phong cách chữ (text_style) và âm thanh hiệu ứng (sound_effect) phù hợp với diễn biến kịch tính hoặc rùng rợn tại thời điểm đó của câu chữ để tối ưu giữ chân người xem.
+    `;
 
-    // 6. Cập nhật trạng thái thành PROCESSED
-    await db.rawNews.update({
-      where: {
-        id: pendingNews.id,
-      },
-      data: {
-        status: "PROCESSED",
-        processedScript: JSON.stringify(generatedScript),
+    // Lượt 2 không cần truyền lại file video nữa, chỉ cần text kịch bản để băm logic
+    const step2Response = await gglClient.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: [promptStep2],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: step2Schema,
+        temperature: 0.3, // Hạ thấp temp để AI tính toán logic thời gian chính xác hơn
       },
     });
 
-    
+    if (!step2Response.text) {
+      throw new Error("Gemini sập ở Bước 2, không băm được timeline");
+    }
 
+    const step2Result = JSON.parse(step2Response.text);
+    console.log(`⏱️ Đã băm xong timeline JSON. Số phân cảnh: ${step2Result.visual_storyboard.length}`);
+
+    // ========================================================
+    // 📊 GỘP 2 KẾT QUẢ THÀNH 1 ĐỐI TƯỢNG DUY NHẤT NHƯ CŨ
+    // ========================================================
+    const finalGeneratedScript = {
+      title_vietnamese: step1Result.title_vietnamese,
+      voiceover_text: step1Result.voiceover_text,
+      hashtags: step1Result.hashtags,
+      visual_storyboard: step2Result.visual_storyboard,
+    };
+
+    // 6. Cập nhật trạng thái thành PROCESSED vào DB
+    await db.rawNews.update({
+      where: { id: pendingNews.id },
+      data: {
+        status: "PROCESSED",
+        processedScript: JSON.stringify(finalGeneratedScript),
+      },
+    });
 
     return NextResponse.json({
       success: true,
       news_id: pendingNews.id,
       platform_source: pendingNews.platform,
       media_url: pendingNews.mediaUrl,
-      script: generatedScript,
+      script: finalGeneratedScript,
     });
+
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);
@@ -231,6 +288,7 @@ export async function GET() {
     );
 
   } finally {
+    // Luôn dọn dẹp file tạm trên hệ thống tránh tràn ổ cứng server
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         fs.unlinkSync(tempFilePath);
@@ -240,4 +298,3 @@ export async function GET() {
     }
   }
 }
-
