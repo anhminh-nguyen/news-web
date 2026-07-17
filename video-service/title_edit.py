@@ -24,8 +24,8 @@ def create_title_image(output_path:str,font_path:str)->None:
     
     draw = ImageDraw.Draw(image)
 
-    font_black = ImageFont.truetype("./fonts/BeVietnamPro-ExtraBold.ttf",68)
-    font_blue = ImageFont.truetype("./fonts/BeVietnamPro-ExtraBold.ttf",70)
+    font_black = ImageFont.truetype("./fonts/BeVietnamPro-ExtraBold.ttf",60)
+    font_blue = ImageFont.truetype("./fonts/BeVietnamPro-ExtraBold.ttf",65)
 
     left = 70
 
@@ -35,25 +35,25 @@ def create_title_image(output_path:str,font_path:str)->None:
         fill=COLOR_BLUE
     )
 
-  # Sự thật rợn người đằng sau những nút thắt dây sinh tồn!
+  # Sự thật rùng mình: Tại sao hàm răng hải ly không bao giờ bị mòn dù gặm gỗ cả đời?
     draw.text(
         (left,45),
-        "SỰ THẬT RỢN NGƯỜI ĐẰNG",
+        "TẠI SAO HÀM RĂNG HẢI LY",
         font = font_black,
-        fill=COLOR_BLACK
+        fill=COLOR_BLUE
 
     )
 
     draw.text(
         (left,145),
-        " SAU NHỮNG NÚT",
+        "KHÔNG BAO GIỜ BỊ",
         font = font_blue,
         fill=COLOR_BLACK
 
     )
     draw.text(
         (left,255),
-        "THẮT DÂY SINH TỒN!",
+        "BÀO MÒN DÙ GẶM GỖ CẢ ĐỜI?",
         font = font_black,
         fill=COLOR_BLUE
 

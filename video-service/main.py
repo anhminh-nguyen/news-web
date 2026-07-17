@@ -27,7 +27,7 @@ CANVAS_H = 1920
 SUBTITLE_GAP = 25
 
 # Title nằm cách mép trên template bao nhiêu pixel
-TITLE_OFFSET_Y = 55
+TITLE_OFFSET_Y = 30
 
 # Title cách hai bên canvas
 TITLE_SIDE_MARGIN = 80

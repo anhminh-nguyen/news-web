@@ -60,17 +60,7 @@ const step2Schema = {
           },
           text_style: {
             type: Type.STRING,
-            description: `
-              Chọn 1 trong:
-              'normal_white',
-              'highlight_yellow',
-              'breaking_red',
-              'success_green',
-              'technology_blue',
-              'mystery_purple',
-              'gold',
-              'quote_gray'
-              `
+            description: 'normal_white',     
           },
           sound_effect: {
             type: Type.STRING,
@@ -137,14 +127,15 @@ export async function GET() {
         if (mediaResponse.ok) {
           const buffer = await mediaResponse.arrayBuffer();
 
-          tempFilePath = path.join(
-            os.tmpdir(),
-            `tiktok_${pendingNews.sourceId}.mp4`,
-          );
+          const fileBuffer = fs.readFileSync(tempFilePath);
+          const fileBlob = new Blob([fileBuffer], { type: "video/mp4" });
+
+          console.log("Đang upload trực tiếp video từ bộ nhớ RAM lên Google File API...");
+
           fs.writeFileSync(tempFilePath, Buffer.from(buffer));
 
           uploadResult = await gglClient.files.upload({
-            file: tempFilePath,
+            file: fileBlob as any,
             config: { mimeType: "video/mp4" },
           });
 
